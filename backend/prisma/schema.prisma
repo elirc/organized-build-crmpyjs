@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedLeads         Lead[]        @relation("LeadOwner")
+  ownedOpportunities Opportunity[] @relation("OpportunityOwner")
+  notes              Note[]
+  tasksAssigned      Task[]        @relation("TaskAssignee")
+  tasksCreated       Task[]        @relation("TaskCreator")
+  auditEvents        AuditEvent[]
+}
+
+model Lead {
+  id                     String     @id @default(uuid())
+  firstName              String
+  lastName               String
+  email                  String?
+  phone                  String?
+  companyName            String?
+  jobTitle               String?
+  source                 LeadSource
+  status                 LeadStatus @default(NEW)
+  ownerId                String?
+  owner                  User?      @relation("LeadOwner", fields: [ownerId], references: [id])
+  convertedAt            DateTime?
+  convertedContactId     String?
+  convertedCompanyId     String?
+  convertedOpportunityId String?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  deletedAt              DateTime?
+
+  notes      Note[]
+  tasks      Task[]
+  activities Activity[]
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([email])
+  @@index([createdAt])
+}
+
+model Company {
+  id            String   @id @default(uuid())
+  name          String
+  domain        String?
+  industry      String?
+  size          CompanySize?
+  phone         String?
+  address       String?
+  website       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  contacts      Contact[]
+  opportunities Opportunity[]
+  notes         Note[]
+  tasks         Task[]
+  activities    Activity[]
+
+  @@index([name])
+  @@index([domain])
+  @@index([industry])
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  jobTitle    String?
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  opportunities Opportunity[]
+  notes         Note[]
+  tasks         Task[]
+  activities    Activity[]
+
+  @@index([companyId])
+  @@index([email])
+  @@index([lastName])
+}
+
+model PipelineStage {
+  id          String   @id @default(uuid())
+  name        String
+  sortOrder   Int
+  probability Int
+  isWonStage  Boolean  @default(false)
+  isLostStage Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  opportunities Opportunity[]
+
+  @@index([sortOrder])
+}
+
+model Opportunity {
+  id                String            @id @default(uuid())
+  name              String
+  description       String?
+  valueCents        Int
+  status            OpportunityStatus @default(OPEN)
+  companyId         String?
+  company           Company?          @relation(fields: [companyId], references: [id])
+  contactId         String?
+  contact           Contact?          @relation(fields: [contactId], references: [id])
+  stageId           String
+  stage             PipelineStage     @relation(fields: [stageId], references: [id])
+  ownerId           String?
+  owner             User?             @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  lostReason        String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  notes      Note[]
+  tasks      Task[]
+  activities Activity[]
+
+  @@index([stageId])
+  @@index([ownerId])
+  @@index([companyId])
+  @@index([status])
+  @@index([expectedCloseDate])
+}
+
+model Note {
+  id            String   @id @default(uuid())
+  body          String
+  authorId      String
+  author        User     @relation(fields: [authorId], references: [id])
+  leadId        String?
+  lead          Lead?    @relation(fields: [leadId], references: [id])
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id])
+  contactId     String?
+  contact       Contact? @relation(fields: [contactId], references: [id])
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([opportunityId])
+}
+
+model Task {
+  id            String     @id @default(uuid())
+  title         String
+  description   String?
+  status        TaskStatus @default(TODO)
+  dueDate       DateTime?
+  assignedToId  String?
+  assignedTo    User?      @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdById   String
+  createdBy     User       @relation("TaskCreator", fields: [createdById], references: [id])
+  leadId        String?
+  lead          Lead?      @relation(fields: [leadId], references: [id])
+  companyId     String?
+  company       Company?   @relation(fields: [companyId], references: [id])
+  contactId     String?
+  contact       Contact?   @relation(fields: [contactId], references: [id])
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+  completedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([leadId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([opportunityId])
+}
+
+model EmailLog {
+  id            String         @id @default(uuid())
+  subject       String
+  bodyPreview   String?
+  direction     EmailDirection
+  sentAt        DateTime
+  fromEmail     String
+  toEmail       String
+  leadId        String?
+  companyId     String?
+  contactId     String?
+  opportunityId String?
+  loggedById    String
+  createdAt     DateTime @default(now())
+
+  @@index([leadId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([opportunityId])
+  @@index([sentAt])
+}
+
+model Activity {
+  id            String       @id @default(uuid())
+  type          ActivityType
+  actorId       String?
+  description   String
+  metadata      Json?
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id])
+  companyId     String?
+  company       Company?     @relation(fields: [companyId], references: [id])
+  contactId     String?
+  contact       Contact?     @relation(fields: [contactId], references: [id])
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+  createdAt     DateTime     @default(now())
+
+  @@index([leadId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([opportunityId])
+  @@index([createdAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  entityType String
+  entityId   String
+  action     String
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum Role {
+  SYSTEM_ADMIN
+  SALES_MANAGER
+  SALES_REP
+  ACCOUNT_MANAGER
+  EXECUTIVE_VIEWER
+  READ_ONLY
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_OUTREACH
+  EVENT
+  SOCIAL_MEDIA
+  PARTNER
+  OTHER
+}
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EmailDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ActivityType {
+  LEAD_CREATED
+  LEAD_ASSIGNED
+  LEAD_CONVERTED
+  CONTACT_CREATED
+  COMPANY_CREATED
+  OPPORTUNITY_CREATED
+  OPPORTUNITY_STAGE_CHANGED
+  OPPORTUNITY_VALUE_CHANGED
+  NOTE_ADDED
+  TASK_CREATED
+  TASK_COMPLETED
+  EMAIL_LOGGED
+}
+
+enum CompanySize {
+  SOLO
+  SMALL
+  MID_MARKET
+  ENTERPRISE
+}
